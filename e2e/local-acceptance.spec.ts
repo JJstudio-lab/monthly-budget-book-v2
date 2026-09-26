@@ -172,11 +172,14 @@ test('Local synthetic household data works across finance flows and responsive l
 });
 
 test('consumption analysis compares expense-only monthly totals and category shares responsively', async ({ page }, testInfo) => {
-  const monthStart = new Date(`${today.slice(0, 7)}-01T00:00:00.000Z`);
-  monthStart.setUTCMonth(monthStart.getUTCMonth() - 1);
-  const previousMonth = monthStart.toISOString().slice(0, 7);
-  const previousDate = `${previousMonth}-15`;
   const currentMonth = today.slice(0, 7);
+  const monthAtOffset = (offset: number) => {
+    const date = new Date(`${currentMonth}-01T00:00:00.000Z`);
+    date.setUTCMonth(date.getUTCMonth() + offset);
+    return date.toISOString().slice(0, 7);
+  };
+  const previousMonth = monthAtOffset(-1);
+  const previousDate = `${previousMonth}-15`;
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
@@ -192,6 +195,7 @@ test('consumption analysis compares expense-only monthly totals and category sha
   await expect(page.locator('.analysis-stat-current')).toContainText('$0');
   await expect(page.locator('.analysis-empty')).toContainText('本月尚無支出資料');
   await expect(page.locator('.analysis-category-row')).toHaveCount(0);
+  await expect(page.locator('.trend-empty')).toContainText('最近 6 個月尚無支出資料');
 
   await page.getByRole('button', { name: '總覽' }).first().click();
   await addTransaction(page, 'expense', '餐飲', 1200, '本月餐飲支出');
@@ -199,6 +203,8 @@ test('consumption analysis compares expense-only monthly totals and category sha
   await addTransaction(page, 'income', '薪資', 70000, '本月薪資收入');
   await addTransaction(page, 'expense', '餐飲', 1000, '上月餐飲支出', '現金', previousDate);
   await addTransaction(page, 'income', '薪資', 30000, '上月薪資收入', '現金', previousDate);
+  await addTransaction(page, 'expense', '交通', 600, '兩個月前交通支出', '現金', `${monthAtOffset(-2)}-12`);
+  await addTransaction(page, 'expense', '生活', 300, '四個月前生活支出', '現金', `${monthAtOffset(-4)}-12`);
 
   await page.getByRole('button', { name: '消費分析' }).first().click();
   await expect(page.locator('.analysis-stat-current')).toContainText('$2,000');
@@ -213,16 +219,37 @@ test('consumption analysis compares expense-only monthly totals and category sha
   await expect(page.locator('.analysis-category-row').nth(1)).toContainText('40%');
   await expect(page.locator('.analysis-category-row')).toHaveCount(2);
   await expect(page.locator('.analysis-panel')).not.toContainText('薪資');
+  const spendByMonth = new Map([[monthAtOffset(-4), 300], [monthAtOffset(-2), 600], [monthAtOffset(-1), 1000], [currentMonth, 2000]]);
+  const renderedTrend = () => page.getByTestId('trend-month').evaluateAll((cells) => cells.map((cell) => ({ month: cell.getAttribute('data-month'), amount: Number(cell.getAttribute('data-amount')) })));
+  await expect(page.getByTestId('trend-month')).toHaveCount(6);
+  await expect(page.getByTestId('trend-point')).toHaveCount(6);
+  await expect(page.getByTestId('trend-line')).toBeVisible();
+  expect(await renderedTrend()).toEqual([-5, -4, -3, -2, -1, 0].map((offset) => {
+    const trendMonth = monthAtOffset(offset);
+    return { month: trendMonth, amount: spendByMonth.get(trendMonth) ?? 0 };
+  }));
 
-  await page.getByLabel('選擇月份').fill(previousMonth);
-  await expect(page.locator('.analysis-stat-current')).toContainText('$1,000');
+  await page.getByLabel('選擇月份').fill(monthAtOffset(-2));
+  await expect(page.locator('.analysis-stat-current')).toContainText('$600');
   await expect(page.locator('.analysis-summary-grid .analysis-stat').nth(1)).toContainText('$0');
   await expect(page.locator('.analysis-stat-change')).toContainText('上月無支出，無法計算增減比例');
   await expect(page.locator('.analysis-category-row')).toHaveCount(1);
   await expect(page.locator('.analysis-category-row').first()).toContainText('100%');
+  expect(await renderedTrend()).toEqual([-5, -4, -3, -2, -1, 0].map((offset) => {
+    const trendMonth = monthAtOffset(offset);
+    return { month: trendMonth, amount: spendByMonth.get(trendMonth) ?? 0 };
+  }));
 
   await page.getByLabel('選擇月份').fill(currentMonth);
   await expect(page.locator('.analysis-stat-current')).toContainText('$2,000');
+  await expect(page.getByTestId('trend-month')).toHaveCount(6);
+  page.once('dialog', (dialog) => dialog.accept('消費分析空白帳本'));
+  await page.getByRole('button', { name: '新增帳本' }).click();
+  await page.getByLabel('選擇帳本').selectOption({ label: '消費分析空白帳本' });
+  await expect(page.locator('.trend-empty')).toContainText('最近 6 個月尚無支出資料');
+  await page.getByLabel('選擇帳本').selectOption({ label: '消費分析驗收' });
+  await expect(page.getByTestId('trend-point')).toHaveCount(6);
+
   for (const viewport of [{ width: 2560, height: 1440 }, { width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     const analysisNav = viewport.width <= 640
@@ -236,9 +263,13 @@ test('consumption analysis compares expense-only monthly totals and category sha
       sidebarDisplay: getComputedStyle(document.querySelector('.sidebar')!).display,
       bottomNavDisplay: getComputedStyle(document.querySelector('.bottom-nav')!).display,
       navCount: document.querySelectorAll('.bottom-nav button').length,
+      trendPanelWidth: document.querySelector('.analysis-trend-panel')!.getBoundingClientRect().width,
+      trendGridColumns: getComputedStyle(document.querySelector('.trend-month-grid')!).gridTemplateColumns.split(' ').length,
     }));
     expect(metrics.viewport).toBe(viewport.width);
     expect(metrics.documentWidth).toBeLessThanOrEqual(viewport.width);
+    expect(metrics.trendPanelWidth).toBeLessThanOrEqual(viewport.width);
+    expect(metrics.trendGridColumns).toBe(viewport.width <= 640 ? 3 : 6);
     if (viewport.width <= 640) {
       expect(metrics.sidebarDisplay).toBe('none');
       expect(metrics.bottomNavDisplay).toBe('grid');

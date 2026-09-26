@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateCategoryBudgetSummaries, calculateConsumptionAnalysis, calculateMonthlySummary, filterTransactions, formatTwd, getBudgetStatus, getPreviousMonth, prioritizeCategoryBudgetSummaries } from './finance';
+import { calculateCategoryBudgetSummaries, calculateConsumptionAnalysis, calculateMonthlyExpenseTrend, calculateMonthlySummary, filterTransactions, formatTwd, getBudgetStatus, getPreviousMonth, getRecentMonths, prioritizeCategoryBudgetSummaries } from './finance';
 import type { Category, CategoryBudget, Transaction } from './types';
 
 const rows: Transaction[] = [
@@ -121,5 +121,31 @@ describe('consumption analysis', () => {
 
   it('finds the prior month across a year boundary', () => {
     expect(getPreviousMonth('2025-01')).toBe('2024-12');
+  });
+});
+
+describe('monthly expense trend', () => {
+  it('returns six chronological months including the selected month across a year boundary', () => {
+    expect(getRecentMonths('2025-02')).toEqual(['2024-09', '2024-10', '2024-11', '2024-12', '2025-01', '2025-02']);
+  });
+
+  it('totals only expenses for each requested month and keeps zero-spend months', () => {
+    const trendRows: Transaction[] = [
+      { ...rows[0], id: 'trend-1', amount: 1200, occurredOn: '2025-04-02' },
+      { ...rows[0], id: 'trend-2', amount: 800, occurredOn: '2025-04-20' },
+      { ...rows[1], id: 'trend-3', amount: 50000, occurredOn: '2025-04-03' },
+      { ...rows[0], id: 'trend-4', amount: 700, occurredOn: '2025-02-10' },
+      { ...rows[0], id: 'trend-5', amount: 900, occurredOn: '2024-10-12' },
+    ];
+    const months = ['2024-10', '2024-11', '2024-12', '2025-01', '2025-02', '2025-03'];
+
+    expect(calculateMonthlyExpenseTrend(trendRows, months)).toEqual([
+      { month: '2024-10', amount: 900 },
+      { month: '2024-11', amount: 0 },
+      { month: '2024-12', amount: 0 },
+      { month: '2025-01', amount: 0 },
+      { month: '2025-02', amount: 700 },
+      { month: '2025-03', amount: 0 },
+    ]);
   });
 });

@@ -3,6 +3,7 @@ import type { Category, CategoryBudget, CategoryBudgetSummary, Transaction, Tran
 export interface MonthlySummary { income: number; expense: number; balance: number; budget: number; remaining: number; budgetUsedPercent: number }
 export interface ConsumptionCategorySummary { categoryId: string; categoryName: string; amount: number; sharePercent: number }
 export interface ConsumptionAnalysis { currentMonth: string; previousMonth: string; currentExpense: number; previousExpense: number; changeAmount: number; changePercent: number | null; categories: ConsumptionCategorySummary[] }
+export interface MonthlyExpenseTrendPoint { month: string; amount: number }
 
 export type BudgetStatus = 'normal' | 'near' | 'over';
 
@@ -36,7 +37,22 @@ export function getPreviousMonth(month: string): string {
   return `${match[1]}-${String(monthNumber - 1).padStart(2, '0')}`;
 }
 
-export function calculateConsumptionAnalysis(rows: Transaction[], categories: Category[], month: string): ConsumptionAnalysis {
+export function getRecentMonths(month: string, count = 6): string[] {
+  if (!Number.isInteger(count) || count < 1) throw new RangeError('月份數量必須為正整數');
+  getPreviousMonth(month);
+  const months = [month];
+  while (months.length < count) months.unshift(getPreviousMonth(months[0]));
+  return months;
+}
+
+export function calculateMonthlyExpenseTrend(rows: Transaction[], months: string[]): MonthlyExpenseTrendPoint[] {
+  return months.map((month) => ({
+    month,
+    amount: rows.reduce((sum, row) => sum + (row.type === 'expense' && row.occurredOn.slice(0, 7) === month ? row.amount : 0), 0),
+  }));
+}
+
+export function calculateConsumptionAnalysis(rows: Transaction[], categories: Category[], month: string) {
   const previousMonth = getPreviousMonth(month);
   const categoryNames = new Map(categories.filter((category) => category.type === 'expense').map((category) => [category.id, category.name]));
   const expenseRows = rows.filter((row) => row.type === 'expense');
