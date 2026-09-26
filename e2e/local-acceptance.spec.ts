@@ -4,12 +4,12 @@ const password = 'Local-only-E2E-Password-2468';
 const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const today = new Date().toISOString().slice(0, 10);
 
-async function addTransaction(page: Page, type: 'expense' | 'income', category: string, amount: number, description: string, method = '現金') {
+async function addTransaction(page: Page, type: 'expense' | 'income', category: string, amount: number, description: string, method = '現金', date = today) {
   await page.getByRole('button', { name: '新增明細' }).first().click();
   const dialog = page.locator('[role="dialog"]');
   if (type === 'income') await dialog.getByRole('button', { name: '收入' }).click();
   await dialog.getByLabel('金額').fill(String(amount));
-  await dialog.getByLabel('日期').fill(today);
+  await dialog.getByLabel('日期').fill(date);
   await dialog.getByLabel('分類').selectOption({ label: category });
   await dialog.getByLabel('付款方式').selectOption({ label: method });
   await dialog.getByLabel('備註').fill(description);
@@ -23,6 +23,8 @@ async function addCategoryBudget(page: Page, category: string, amount: number) {
   await page.getByRole('button', { name: '新增分類預算' }).click();
   const budget = page.locator('[data-testid^="category-budget-"]').filter({ hasText: category });
   await expect(budget).toContainText(`$${amount.toLocaleString('en-US')}`);
+  const amountInput = page.getByLabel('分類預算金額', { exact: true });
+  if (await amountInput.count()) await expect(amountInput).toHaveValue('');
 }
 
 async function verifyViewport(page: Page, pageKey: string, width: number, height: number, outputPath: string) {
@@ -166,5 +168,85 @@ test('Local synthetic household data works across finance flows and responsive l
   }
   for (const pageKey of ['overview', 'records', 'budget', 'settings']) {
     await verifyViewport(page, pageKey, 390, 844, testInfo.outputPath(`local-acceptance-390-${pageKey}.png`));
+  }
+});
+
+test('consumption analysis compares expense-only monthly totals and category shares responsively', async ({ page }, testInfo) => {
+  const monthStart = new Date(`${today.slice(0, 7)}-01T00:00:00.000Z`);
+  monthStart.setUTCMonth(monthStart.getUTCMonth() - 1);
+  const previousMonth = monthStart.toISOString().slice(0, 7);
+  const previousDate = `${previousMonth}-15`;
+  const currentMonth = today.slice(0, 7);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByRole('button', { name: '建立帳號' }).click();
+  await page.getByLabel('Email').fill(`consumption-analysis-${id}@example.test`);
+  await page.getByLabel('密碼').fill(password);
+  await page.locator('form').getByRole('button', { name: '建立帳號' }).click();
+  page.once('dialog', (dialog) => dialog.accept('消費分析驗收'));
+  await page.getByRole('button', { name: '建立我的帳本' }).click();
+  await expect(page.getByRole('heading', { name: '收支總覽' })).toBeVisible();
+
+  await page.getByRole('button', { name: '消費分析' }).first().click();
+  await expect(page.locator('.analysis-stat-current')).toContainText('$0');
+  await expect(page.locator('.analysis-empty')).toContainText('本月尚無支出資料');
+  await expect(page.locator('.analysis-category-row')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '總覽' }).first().click();
+  await addTransaction(page, 'expense', '餐飲', 1200, '本月餐飲支出');
+  await addTransaction(page, 'expense', '交通', 800, '本月交通支出');
+  await addTransaction(page, 'income', '薪資', 70000, '本月薪資收入');
+  await addTransaction(page, 'expense', '餐飲', 1000, '上月餐飲支出', '現金', previousDate);
+  await addTransaction(page, 'income', '薪資', 30000, '上月薪資收入', '現金', previousDate);
+
+  await page.getByRole('button', { name: '消費分析' }).first().click();
+  await expect(page.locator('.analysis-stat-current')).toContainText('$2,000');
+  await expect(page.locator('.analysis-summary-grid .analysis-stat').nth(1)).toContainText('$1,000');
+  await expect(page.locator('.analysis-stat-change')).toContainText('+$1,000');
+  await expect(page.locator('.analysis-stat-change')).toContainText('+100%');
+  await expect(page.locator('.analysis-category-row').nth(0)).toContainText('餐飲');
+  await expect(page.locator('.analysis-category-row').nth(0)).toContainText('$1,200');
+  await expect(page.locator('.analysis-category-row').nth(0)).toContainText('60%');
+  await expect(page.locator('.analysis-category-row').nth(1)).toContainText('交通');
+  await expect(page.locator('.analysis-category-row').nth(1)).toContainText('$800');
+  await expect(page.locator('.analysis-category-row').nth(1)).toContainText('40%');
+  await expect(page.locator('.analysis-category-row')).toHaveCount(2);
+  await expect(page.locator('.analysis-panel')).not.toContainText('薪資');
+
+  await page.getByLabel('選擇月份').fill(previousMonth);
+  await expect(page.locator('.analysis-stat-current')).toContainText('$1,000');
+  await expect(page.locator('.analysis-summary-grid .analysis-stat').nth(1)).toContainText('$0');
+  await expect(page.locator('.analysis-stat-change')).toContainText('上月無支出，無法計算增減比例');
+  await expect(page.locator('.analysis-category-row')).toHaveCount(1);
+  await expect(page.locator('.analysis-category-row').first()).toContainText('100%');
+
+  await page.getByLabel('選擇月份').fill(currentMonth);
+  await expect(page.locator('.analysis-stat-current')).toContainText('$2,000');
+  for (const viewport of [{ width: 2560, height: 1440 }, { width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    const analysisNav = viewport.width <= 640
+      ? page.locator('.bottom-nav button').filter({ hasText: '消費分析' })
+      : page.locator('.nav-item').filter({ hasText: '消費分析' });
+    await analysisNav.click();
+    await expect(page.locator('.analysis-summary-grid')).toBeVisible();
+    const metrics = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      sidebarDisplay: getComputedStyle(document.querySelector('.sidebar')!).display,
+      bottomNavDisplay: getComputedStyle(document.querySelector('.bottom-nav')!).display,
+      navCount: document.querySelectorAll('.bottom-nav button').length,
+    }));
+    expect(metrics.viewport).toBe(viewport.width);
+    expect(metrics.documentWidth).toBeLessThanOrEqual(viewport.width);
+    if (viewport.width <= 640) {
+      expect(metrics.sidebarDisplay).toBe('none');
+      expect(metrics.bottomNavDisplay).toBe('grid');
+      expect(metrics.navCount).toBe(5);
+    } else {
+      expect(metrics.sidebarDisplay).not.toBe('none');
+      expect(metrics.bottomNavDisplay).toBe('none');
+    }
+    await page.screenshot({ path: testInfo.outputPath(`consumption-analysis-${viewport.width}.png`) });
   }
 });

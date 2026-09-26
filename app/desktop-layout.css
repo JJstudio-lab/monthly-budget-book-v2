@@ -1,5 +1,6 @@
 @media (min-width: 1600px) {
-  .content.content-overview { width: min(100%, 1480px); }
+  .content.content-overview,
+  .content.content-analysis { width: min(100%, 1480px); }
   .content.content-records,
   .content.content-budget,
   .content.content-settings { width: min(100%, 1880px); }

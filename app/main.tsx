@@ -1,25 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowDownLeft, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, CirclePlus, CreditCard, LayoutDashboard, LogOut, Search, Settings2, Wallet, X } from 'lucide-react';
-import { calculateCategoryBudgetSummaries, calculateMonthlySummary, filterTransactions, formatTwd, getBudgetStatus, prioritizeCategoryBudgetSummaries } from '../src/finance';
+import { ArrowDownLeft, ArrowUpRight, BookOpen, CalendarDays, ChevronDown, CirclePlus, CreditCard, LayoutDashboard, LogOut, PieChart, Search, Settings2, Wallet, X } from 'lucide-react';
+import { calculateCategoryBudgetSummaries, calculateConsumptionAnalysis, calculateMonthlySummary, filterTransactions, formatTwd, getBudgetStatus, getPreviousMonth, prioritizeCategoryBudgetSummaries } from '../src/finance';
 import { dataStore, demoUsers, type Identity, type LedgerData, type EntryInput } from '../src/store';
 import type { Category, CategoryBudgetSummary, CreatedLedgerInvitation, Ledger, LedgerInvitation, LedgerMember, MemberRole, PaymentMethod, Transaction, TransactionType } from '../src/types';
 import './styles.css';
 import './brand.css';
 import './category-budget.css';
 import './home-budget.css';
+import './consumption-analysis.css';
 import './shared-ledger.css';
 import './desktop-layout.css';
 
 const today = new Date().toISOString().slice(0, 10);
 const currentMonth = today.slice(0, 7);
-type Page = 'overview' | 'records' | 'budget' | 'settings';
+type Page = 'overview' | 'analysis' | 'records' | 'budget' | 'settings';
 
 function App() {
   const [user, setUser] = useState<Identity | null>(null);
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [ledgerId, setLedgerId] = useState('');
   const [data, setData] = useState<LedgerData | null>(null);
+  const [analysisData, setAnalysisData] = useState<{ ledgerId: string; month: string; current: LedgerData; previous: LedgerData } | null>(null);
+  const [analysisLoadError, setAnalysisLoadError] = useState('');
   const [page, setPage] = useState<Page>('overview');
   const [month, setMonth] = useState(currentMonth);
   const [query, setQuery] = useState('');
@@ -137,6 +140,17 @@ function App() {
   const monthlyCategoryBudgets = useMemo(() => prioritizeCategoryBudgetSummaries(categoryBudgetSummaries, categoryBudgetSummaries.length), [categoryBudgetSummaries]);
   const availableBudgetCategories = useMemo(() => (data?.categories ?? []).filter((category) => category.type === 'expense' && category.active && !(data?.categoryBudgets ?? []).some((budget) => budget.month === month && budget.categoryId === category.id)), [data, month]);
   const filtered = useMemo(() => filterTransactions(data?.transactions ?? [], { month, query, type: typeFilter, categoryId: categoryFilter }), [data, month, query, typeFilter, categoryFilter]);
+  const previousMonth = useMemo(() => getPreviousMonth(month), [month]);
+  useEffect(() => {
+    if (page !== 'analysis' || !ledgerId) { setAnalysisData(null); setAnalysisLoadError(''); return; }
+    let active = true;
+    setAnalysisData(null);
+    setAnalysisLoadError('');
+    void Promise.all([dataStore.ledgerData(ledgerId, month), dataStore.ledgerData(ledgerId, previousMonth)])
+      .then(([current, previous]) => { if (active) setAnalysisData({ ledgerId, month, current, previous }); })
+      .catch((error) => { if (active) { showError(error); setAnalysisLoadError('消費分析資料載入失敗，請稍後再試。'); } });
+    return () => { active = false; };
+  }, [page, ledgerId, month, previousMonth]);
   async function saveTransaction(input: EntryInput, id?: string) { await run(async () => { await dataStore.saveEntry(ledgerId, input, id); setEntry(undefined); await reload(); }, id ? '明細已更新' : '明細已新增'); }
   async function removeTransaction(row: Transaction) { if (!window.confirm(`刪除「${row.description || row.categoryName}」？`)) return; await run(async () => { await dataStore.deleteEntry(row.id); await reload(); }, '明細已刪除'); }
   async function saveBudget(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); const amount = Number(new FormData(event.currentTarget).get('amount')); await run(async () => { await dataStore.saveBudget(ledgerId, month, amount); await reload(); }, '預算已儲存'); }
@@ -148,12 +162,14 @@ function App() {
 
   const nav: { id: Page; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: '總覽', icon: <LayoutDashboard size={18} /> },
+    { id: 'analysis', label: '消費分析', icon: <PieChart size={18} /> },
     { id: 'records', label: '收支明細', icon: <BookOpen size={18} /> },
     { id: 'budget', label: '月預算', icon: <CalendarDays size={18} /> },
     { id: 'settings', label: '帳本設定', icon: <Settings2 size={18} /> },
   ];
   return <div className="app-shell"><header className="topbar"><a className="brand" href="#overview"><span className="brand-title">每月預算記帳本</span><small className="brand-version">V2</small></a><div className="header-controls"><label className="ledger-select"><BookOpen size={16} /><select aria-label="選擇帳本" value={ledgerId} onChange={(e) => void changeLedger(e.target.value)}>{ledgers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ChevronDown size={14} /></label><label className="month-select"><input aria-label="選擇月份" type="month" value={month} onChange={(e) => setMonth(e.target.value)} /></label><span className="user-chip">{user.displayName}</span><button className="icon-button logout" aria-label="登出" title="登出" onClick={() => void logout()}><LogOut size={17} /></button></div></header><div className="layout"><aside className="sidebar"><p className="side-label">工作區</p>{nav.map((item) => <button key={item.id} className={`nav-item ${page === item.id ? 'selected' : ''}`} onClick={() => setPage(item.id)}>{item.icon}<span>{item.label}</span></button>)}<button className="nav-item add-ledger" onClick={() => void addLedger()}><CirclePlus size={18} /><span>新增帳本</span></button><div className="sidebar-foot"><span className="avatar">{user.displayName.slice(-1)}</span><div><b>{user.displayName}</b><small>{user.email}</small></div></div></aside><main className={`content content-${page}`}><div className="mobile-title"><span>每月預算記帳本</span><span>{user.displayName}</span></div>{notice && <div className="toast" role="status">{notice}<button aria-label="關閉通知" onClick={() => setNotice('')}><X size={15} /></button></div>}{!data ? ledgers.length === 0 ? <section className="panel empty first-ledger"><b>尚未建立帳本</b><small>先建立個人或共用帳本，即可開始記帳。</small><button className="primary" onClick={() => void addLedger()}>建立我的帳本</button></section> : <div className="loading">載入帳本中…</div> : <>
     {page === 'overview' && <><div className="page-heading"><div><p className="eyebrow">MONTHLY OVERVIEW</p><h1>收支總覽</h1><p className="muted">{month.replace('-', ' 年 ')} 月・{data.ledger.name}</p></div><button className="primary" onClick={() => setEntry(null)}><CirclePlus size={17} />新增明細</button></div><section className="summary-grid"><SummaryCard label="本月收入" amount={summary.income} icon={<ArrowDownLeft />} kind="income" /><SummaryCard label="本月支出" amount={summary.expense} icon={<ArrowUpRight />} kind="expense" /><SummaryCard label="結餘" amount={summary.balance} icon={<Wallet />} kind="balance" /></section><section className="overview-grid"><article className="panel budget-panel"><div className="panel-title"><div><span className="icon-tile purple"><CalendarDays size={18} /></span><div><h2>本月預算</h2><p className="muted">支出使用狀況</p></div></div><button className="text-button" onClick={() => setPage('budget')}>管理預算 ↗</button></div><BudgetUsage label="本月總預算" amount={summary.budget} spent={summary.expense} remaining={summary.remaining} usedPercent={summary.budget > 0 ? summary.budgetUsedPercent : null} /><div className="home-budget-category-heading"><b>分類預算摘要</b><small>已花 / 預算</small></div>{homepageCategoryBudgets.length === 0 ? <p className="home-budget-empty">尚未設定分類預算</p> : <div className="home-budget-category-list">{homepageCategoryBudgets.map((budget) => { const category = data.categories.find((item) => item.id === budget.categoryId); return <BudgetUsage key={`${budget.month}-${budget.categoryId}`} label={category?.name ?? '已移除分類'} amount={budget.amount} spent={budget.spent} remaining={budget.remaining} usedPercent={budget.usedPercent} compact />; })}</div>}</article><article className="panel recent-panel"><div className="panel-title"><div><span className="icon-tile peach"><BookOpen size={18} /></span><div><h2>最近明細</h2><p className="muted">本月最新收支</p></div></div><button className="text-button" onClick={() => setPage('records')}>全部明細 ↗</button></div><TransactionList rows={filtered.slice(0, 4)} onEdit={(row) => setEntry(row)} onDelete={removeTransaction} /></article></section></>}
+    {page === 'analysis' && (analysisData?.ledgerId === ledgerId && analysisData.month === month ? <ConsumptionAnalysisPage currentData={analysisData.current} previousData={analysisData.previous} month={month} /> : analysisLoadError ? <section className="panel analysis-load-error" role="alert">{analysisLoadError}</section> : <section className="panel analysis-loading" role="status">消費分析資料載入中…</section>)}
     {page === 'records' && <><div className="page-heading"><div><p className="eyebrow">TRANSACTIONS</p><h1>收支明細</h1><p className="muted">搜尋並管理帳本中的收支紀錄</p></div><button className="primary" onClick={() => setEntry(null)}><CirclePlus size={17} />新增明細</button></div><section className="panel records-panel"><div className="filters"><label className="search-field"><Search size={17} /><input aria-label="搜尋明細" placeholder="搜尋描述、分類或付款方式" value={query} onChange={(e) => setQuery(e.target.value)} /></label><select aria-label="收支類型" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as 'all' | TransactionType)}><option value="all">全部類型</option><option value="expense">支出</option><option value="income">收入</option></select><select aria-label="明細分類" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="all">全部分類</option>{data.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><TransactionList rows={filtered} onEdit={(row) => setEntry(row)} onDelete={removeTransaction} /></section></>}
     {page === 'budget' && <>
       <div className="page-heading"><div><p className="eyebrow">MONTHLY PLAN</p><h1>月預算</h1><p className="muted">設定 {month} 的支出目標</p></div></div>
@@ -180,6 +196,32 @@ function SharedLedgerPanel({ enabled, members, invitations, shareLink, busy, onI
 }
 
 function SummaryCard({ label, amount, icon, kind }: { label: string; amount: number; icon: React.ReactNode; kind: string }) { return <article className={`summary-card ${kind}`}><div className="summary-top"><span>{label}</span><i>{icon}</i></div><strong>{formatTwd(amount)}</strong><small>{kind === 'income' ? '本月累計收入' : kind === 'expense' ? '本月累計支出' : '收入扣除支出'}</small></article>; }
+function ConsumptionAnalysisPage({ currentData, previousData, month }: { currentData: LedgerData; previousData: LedgerData; month: string }) {
+  const analysis = useMemo(() => calculateConsumptionAnalysis([...currentData.transactions, ...previousData.transactions], currentData.categories, month), [currentData, previousData, month]);
+  const trend = analysis.changeAmount > 0 ? 'increase' : analysis.changeAmount < 0 ? 'decrease' : 'unchanged';
+  const trendLabel = analysis.changeAmount > 0 ? '較上月增加' : analysis.changeAmount < 0 ? '較上月減少' : '與上月持平';
+  const amountChange = analysis.changeAmount > 0 ? `+${formatTwd(analysis.changeAmount)}` : analysis.changeAmount < 0 ? `−${formatTwd(Math.abs(analysis.changeAmount))}` : formatTwd(0);
+  const percentChange = analysis.changePercent === null ? '—' : `${analysis.changePercent > 0 ? '+' : analysis.changePercent < 0 ? '−' : ''}${Math.abs(analysis.changePercent)}%`;
+  const monthLabel = (value: string) => { const [year, monthValue] = value.split('-'); return `${year} 年 ${monthValue} 月`; };
+  return <>
+    <div className="page-heading"><div><p className="eyebrow">MONTHLY SPENDING</p><h1>消費分析</h1><p className="muted">{monthLabel(month)}・僅計算支出</p></div></div>
+    <section className="analysis-summary-grid" aria-label="本月與上月支出摘要">
+      <article className="analysis-stat analysis-stat-current"><span>本月總支出</span><strong>{formatTwd(analysis.currentExpense)}</strong><small>{monthLabel(analysis.currentMonth)}</small></article>
+      <article className="analysis-stat"><span>上月支出</span><strong>{formatTwd(analysis.previousExpense)}</strong><small>{monthLabel(analysis.previousMonth)}</small></article>
+      <article className={`analysis-stat analysis-stat-change ${trend}`}><span>較上月變動</span><strong>{amountChange}</strong><small>{analysis.changePercent === null ? '上月無支出，無法計算增減比例' : `${trendLabel} ${percentChange}`}</small></article>
+    </section>
+    <section className="panel analysis-panel" aria-labelledby="analysis-category-title">
+      <div className="analysis-panel-heading"><div><p className="eyebrow">CATEGORY BREAKDOWN</p><h2 id="analysis-category-title">分類支出排行</h2><p className="muted">依支出金額排序・金額旁為占本月支出比例</p></div><span className="icon-tile purple"><PieChart size={19} /></span></div>
+      {analysis.categories.length === 0 ? <div className="analysis-empty"><span className="icon-tile purple"><Wallet size={19} /></span><b>本月尚無支出資料</b><small>新增支出明細後，這裡會顯示分類排行與支出占比。</small></div> : <ol className="analysis-category-list">{analysis.categories.map((category, index) => {
+        const share = `${Number.isInteger(category.sharePercent) ? category.sharePercent : category.sharePercent.toFixed(1)}%`;
+        return <li className="analysis-category-row" key={category.categoryId}>
+          <div className="analysis-category-top"><span className="analysis-category-rank">{index + 1}</span><b className="analysis-category-name">{category.categoryName}</b><strong>{formatTwd(category.amount)}</strong><span className="analysis-category-share">{share}</span></div>
+          <div className="analysis-category-track" role="progressbar" aria-label={`${category.categoryName}支出占比`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={category.sharePercent} aria-valuetext={`占本月支出 ${share}`}><span style={{ width: `${Math.min(100, Math.max(0, category.sharePercent))}%` }} /></div>
+        </li>;
+      })}</ol>}
+    </section>
+  </>;
+}
 function BudgetUsage({ label, amount, spent, remaining, usedPercent, compact = false, badge }: { label: string; amount: number; spent: number; remaining: number; usedPercent: number | null; compact?: boolean; badge?: React.ReactNode }) {
   const status = getBudgetStatus(usedPercent, remaining);
   const progress = usedPercent === null ? (status === 'over' ? 100 : 0) : Math.min(Math.max(usedPercent, 0), 100);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { calculateCategoryBudgetSummaries, calculateMonthlySummary, filterTransactions, formatTwd, getBudgetStatus, prioritizeCategoryBudgetSummaries } from './finance';
-import type { CategoryBudget, Transaction } from './types';
+import { calculateCategoryBudgetSummaries, calculateConsumptionAnalysis, calculateMonthlySummary, filterTransactions, formatTwd, getBudgetStatus, getPreviousMonth, prioritizeCategoryBudgetSummaries } from './finance';
+import type { Category, CategoryBudget, Transaction } from './types';
 
 const rows: Transaction[] = [
   { id: '1', ledgerId: 'l1', amount: 1200, type: 'expense', occurredOn: '2025-04-02', description: '午餐', categoryId: 'food', categoryName: '餐飲', paymentMethodId: 'cash', paymentMethodName: '現金' },
@@ -76,5 +76,50 @@ describe('monthly finance calculations', () => {
 
     expect(prioritizeCategoryBudgetSummaries(summaries, 3).map((item) => item.categoryId)).toEqual(['zero-over', 'over', 'near']);
     expect(prioritizeCategoryBudgetSummaries([])).toEqual([]);
+  });
+});
+
+describe('consumption analysis', () => {
+  const categories: Category[] = [
+    { id: 'food', name: '餐飲', type: 'expense', sortOrder: 10, active: true },
+    { id: 'transport', name: '交通', type: 'expense', sortOrder: 20, active: true },
+    { id: 'salary', name: '薪資', type: 'income', sortOrder: 30, active: true },
+  ];
+
+  it('compares only monthly expenses and ranks categories by amount and share', () => {
+    const analysisRows: Transaction[] = [
+      { ...rows[0], id: 'a1', amount: 1200, occurredOn: '2025-04-02' },
+      { ...rows[0], id: 'a2', amount: 800, occurredOn: '2025-04-05', categoryId: 'transport', categoryName: '交通' },
+      { ...rows[1], id: 'a3', amount: 70000, occurredOn: '2025-04-06' },
+      { ...rows[0], id: 'a4', amount: 1000, occurredOn: '2025-03-02' },
+      { ...rows[1], id: 'a5', amount: 25000, occurredOn: '2025-03-03' },
+      { ...rows[0], id: 'a6', amount: 900, occurredOn: '2025-02-12' },
+    ];
+
+    expect(calculateConsumptionAnalysis(analysisRows, categories, '2025-04')).toEqual({
+      currentMonth: '2025-04',
+      previousMonth: '2025-03',
+      currentExpense: 2000,
+      previousExpense: 1000,
+      changeAmount: 1000,
+      changePercent: 100,
+      categories: [
+        { categoryId: 'food', categoryName: '餐飲', amount: 1200, sharePercent: 60 },
+        { categoryId: 'transport', categoryName: '交通', amount: 800, sharePercent: 40 },
+      ],
+    });
+  });
+
+  it('handles a zero-spend comparison without dividing by zero', () => {
+    const result = calculateConsumptionAnalysis([], categories, '2025-04');
+    expect(result.currentExpense).toBe(0);
+    expect(result.previousExpense).toBe(0);
+    expect(result.changeAmount).toBe(0);
+    expect(result.changePercent).toBeNull();
+    expect(result.categories).toEqual([]);
+  });
+
+  it('finds the prior month across a year boundary', () => {
+    expect(getPreviousMonth('2025-01')).toBe('2024-12');
   });
 });
