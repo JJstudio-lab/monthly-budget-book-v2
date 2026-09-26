@@ -1,0 +1,15 @@
+@media (min-width: 1600px) {
+  .content.content-overview { width: min(100%, 1480px); }
+  .content.content-records,
+  .content.content-budget,
+  .content.content-settings { width: min(100%, 1880px); }
+  .content.content-budget .budget-editor { max-width: min(100%, 1320px); }
+}
+
+@media (max-width: 640px) {
+  .header-controls { gap: 2px; }
+  .header-controls .ledger-select select { max-width: 60px; }
+  .header-controls .month-select input { width: 100px; }
+  .header-controls .logout { padding: 3px; }
+  .row-actions button { min-width: 32px; min-height: 32px; padding: 6px; font-size: 10px; }
+}

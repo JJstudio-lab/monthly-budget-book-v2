@@ -1,0 +1,28 @@
+# Dependencies and generated application output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local environment files and credentials; keep only the documented template
+.env
+.env.*
+!.env.example
+
+# Playwright outputs and browser artifacts
+playwright-report/
+test-results/
+playwright/.cache/
+blob-report/
+
+# Local Supabase state, secrets, and ephemeral CLI metadata
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.*
+
+# Local caches, logs, and OS metadata
+.cache/
+.vite/
+*.log
+.DS_Store
