@@ -30,8 +30,28 @@ const email = `category-budget-${id}@example.test`;
   const foodBudget = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '餐飲' });
   await expect(foodBudget).toContainText('250');
   await expect(foodBudget).toContainText('350');
-  await expect(foodBudget).toContainText('-$100');
+  await expect(foodBudget).toContainText('超支 · $100');
   await expect(foodBudget).toContainText('140%');
+  await foodBudget.getByLabel('分類預算金額 餐飲').fill('0');
+  await foodBudget.getByRole('button', { name: '儲存' }).click();
+  await expect(foodBudget.locator('.budget-usage')).toHaveAttribute('data-state', 'over');
+  await expect(foodBudget).toContainText('超支 · $350');
+  await expect(foodBudget.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+  await foodBudget.getByLabel('分類預算金額 餐飲').fill('250');
+  await foodBudget.getByRole('button', { name: '儲存' }).click();
+  await expect(foodBudget).toContainText('140%');
+
+  await page.getByLabel('預算分類').selectOption({ label: '交通' });
+  await page.getByLabel('分類預算金額', { exact: true }).fill('800');
+  await page.getByRole('button', { name: '新增分類預算' }).click();
+  const unusedBudget = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '交通' });
+  await expect(unusedBudget).toHaveAttribute('data-testid', /category-budget-/);
+  await expect(unusedBudget.locator('.budget-usage')).toHaveAttribute('data-state', 'normal');
+  await expect(unusedBudget.locator('.budget-usage')).toContainText('0%');
+  await expect(unusedBudget.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+  page.once('dialog', (dialog) => dialog.accept());
+  await unusedBudget.getByRole('button', { name: '刪除' }).click();
+  await expect(unusedBudget).toHaveCount(0);
 
   await page.getByRole('button', { name: '總覽' }).first().click();
   const homepageBudget = page.locator('.budget-panel');
@@ -41,7 +61,8 @@ const email = `category-budget-${id}@example.test`;
   await expect(homepageBudget).toContainText('$1,650');
   await expect(homepageBudget).toContainText('18%');
   await expect(homepageBudget).toContainText('餐飲');
-  await expect(homepageBudget).toContainText('已超支 · 140%');
+  await expect(homepageBudget.locator('.budget-usage.compact').filter({ hasText: '餐飲' })).toContainText('已超支');
+  await expect(homepageBudget.locator('.budget-usage.compact').filter({ hasText: '餐飲' })).toContainText('140%');
 
   await page.getByRole('button', { name: '月預算' }).first().click();
   await page.reload();
@@ -70,6 +91,6 @@ test('Local Supabase homepage keeps the category budget empty state clean', asyn
   await expect(page.getByRole('heading', { name: '收支總覽' })).toBeVisible();
   const homepageBudget = page.locator('.budget-panel');
   await expect(homepageBudget).toContainText('$0');
-  await expect(homepageBudget).toContainText('使用比例');
+  await expect(homepageBudget).toContainText('使用率');
   await expect(homepageBudget).toContainText('尚未設定分類預算');
 });

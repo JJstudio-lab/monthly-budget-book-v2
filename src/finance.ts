@@ -2,6 +2,14 @@ import type { CategoryBudget, CategoryBudgetSummary, Transaction, TransactionFil
 
 export interface MonthlySummary { income: number; expense: number; balance: number; budget: number; remaining: number; budgetUsedPercent: number }
 
+export type BudgetStatus = 'normal' | 'near' | 'over';
+
+export function getBudgetStatus(usedPercent: number | null, remaining: number): BudgetStatus {
+  if (remaining < 0) return 'over';
+  if (usedPercent !== null && usedPercent >= 80) return 'near';
+  return 'normal';
+}
+
 export function calculateCategoryBudgetSummaries(budgets: CategoryBudget[], rows: Transaction[], month: string): CategoryBudgetSummary[] {
   return budgets.filter((budget) => budget.month === month).map((budget) => {
     const spent = rows.reduce((sum, row) => sum + (row.type === 'expense' && row.occurredOn.startsWith(month) && row.categoryId === budget.categoryId ? row.amount : 0), 0);

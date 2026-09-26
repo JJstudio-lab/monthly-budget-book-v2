@@ -99,7 +99,7 @@ test('Local synthetic household data works across finance flows and responsive l
   await page.getByRole('button', { name: '月預算' }).first().click();
   await page.getByLabel('本月預算金額').fill('30000');
   await page.getByRole('button', { name: '儲存預算' }).click();
-  await addCategoryBudget(page, '餐飲', 2500);
+  await addCategoryBudget(page, '餐飲', 4000);
   await addCategoryBudget(page, '交通', 1500);
   await addCategoryBudget(page, '生活', 20000);
 
@@ -112,13 +112,20 @@ test('Local synthetic household data works across finance flows and responsive l
   await expect(homeBudget).toContainText('$21,800');
   await expect(homeBudget).toContainText('$8,200');
   await expect(homeBudget).toContainText('73%');
-  await expect(homeBudget.locator('.home-budget-category')).toHaveCount(3);
-  await expect(homeBudget.locator('.home-budget-category').nth(0)).toContainText('交通');
-  await expect(homeBudget.locator('.home-budget-category').nth(0)).toContainText('已超支 · 120%');
-  await expect(homeBudget.locator('.home-budget-category').nth(1)).toContainText('生活');
-  await expect(homeBudget.locator('.home-budget-category').nth(1)).toContainText('接近上限 · 90%');
-  await expect(homeBudget.locator('.home-budget-category').nth(2)).toContainText('餐飲');
-  await expect(homeBudget.locator('.home-budget-category').nth(2)).toContainText('接近上限 · 80%');
+  await expect(homeBudget.locator('.budget-usage.compact')).toHaveCount(3);
+  const homeCategories = homeBudget.locator('.budget-usage.compact');
+  await expect(homeCategories.nth(0)).toContainText('交通');
+  await expect(homeCategories.nth(0)).toHaveAttribute('data-state', 'over');
+  await expect(homeCategories.nth(0)).toContainText('已超支');
+  await expect(homeCategories.nth(0)).toContainText('120%');
+  await expect(homeCategories.nth(1)).toContainText('生活');
+  await expect(homeCategories.nth(1)).toHaveAttribute('data-state', 'near');
+  await expect(homeCategories.nth(1)).toContainText('接近預算');
+  await expect(homeCategories.nth(1)).toContainText('90%');
+  await expect(homeCategories.nth(2)).toContainText('餐飲');
+  await expect(homeCategories.nth(2)).toHaveAttribute('data-state', 'normal');
+  await expect(homeCategories.nth(2)).toContainText('正常使用');
+  await expect(homeCategories.nth(2)).toContainText('50%');
 
   await page.getByRole('button', { name: '收支明細' }).first().click();
   await expect(page.locator('.transaction-row')).toHaveCount(8);
@@ -138,11 +145,11 @@ test('Local synthetic household data works across finance flows and responsive l
   const food = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '餐飲' });
   const transport = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '交通' });
   const living = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '生活' });
+  await expect(food).toContainText('$4,000');
   await expect(food).toContainText('$2,000');
-  await expect(food).toContainText('$500');
-  await expect(food).toContainText('80%');
+  await expect(food).toContainText('50%');
   await expect(transport).toContainText('$1,800');
-  await expect(transport).toContainText('-$300');
+  await expect(transport).toContainText('超支 · $300');
   await expect(transport).toContainText('120%');
   await expect(living).toContainText('$18,000');
   await expect(living).toContainText('$2,000');
@@ -150,6 +157,9 @@ test('Local synthetic household data works across finance flows and responsive l
 
   for (const pageKey of ['overview', 'records', 'budget', 'settings']) {
     await verifyViewport(page, pageKey, 2560, 1440, testInfo.outputPath(`local-acceptance-2560-${pageKey}.png`));
+  }
+  for (const pageKey of ['overview', 'records', 'budget', 'settings']) {
+    await verifyViewport(page, pageKey, 1440, 900, testInfo.outputPath(`local-acceptance-1440-${pageKey}.png`));
   }
   for (const pageKey of ['overview', 'records', 'budget', 'settings']) {
     await verifyViewport(page, pageKey, 390, 844, testInfo.outputPath(`local-acceptance-390-${pageKey}.png`));
