@@ -145,6 +145,9 @@ test('Local synthetic household data works across finance flows and responsive l
   const food = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '餐飲' });
   const transport = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '交通' });
   const living = page.locator('[data-testid^="category-budget-"]').filter({ hasText: '生活' });
+  await expect(page.locator('.category-budget-item').nth(0)).toContainText('交通');
+  await expect(page.locator('.category-budget-item').nth(1)).toContainText('生活');
+  await expect(page.locator('.category-budget-item').nth(2)).toContainText('餐飲');
   await expect(food).toContainText('$4,000');
   await expect(food).toContainText('$2,000');
   await expect(food).toContainText('50%');

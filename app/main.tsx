@@ -134,6 +134,7 @@ function App() {
   const summary = useMemo(() => calculateMonthlySummary(data?.transactions ?? [], month, data?.budget?.amount ?? 0), [data, month]);
   const categoryBudgetSummaries = useMemo(() => calculateCategoryBudgetSummaries(data?.categoryBudgets ?? [], data?.transactions ?? [], month), [data, month]);
   const homepageCategoryBudgets = useMemo(() => prioritizeCategoryBudgetSummaries(categoryBudgetSummaries), [categoryBudgetSummaries]);
+  const monthlyCategoryBudgets = useMemo(() => prioritizeCategoryBudgetSummaries(categoryBudgetSummaries, categoryBudgetSummaries.length), [categoryBudgetSummaries]);
   const availableBudgetCategories = useMemo(() => (data?.categories ?? []).filter((category) => category.type === 'expense' && category.active && !(data?.categoryBudgets ?? []).some((budget) => budget.month === month && budget.categoryId === category.id)), [data, month]);
   const filtered = useMemo(() => filterTransactions(data?.transactions ?? [], { month, query, type: typeFilter, categoryId: categoryFilter }), [data, month, query, typeFilter, categoryFilter]);
   async function saveTransaction(input: EntryInput, id?: string) { await run(async () => { await dataStore.saveEntry(ledgerId, input, id); setEntry(undefined); await reload(); }, id ? '明細已更新' : '明細已新增'); }
@@ -164,7 +165,7 @@ function App() {
           <label>預算金額（TWD）<input aria-label="分類預算金額" name="amount" type="number" min="0" max="1000000000000" step="1" placeholder="0" required /></label>
           <button className="primary" type="submit" disabled={busy}>新增分類預算</button>
         </form>}
-        {categoryBudgetSummaries.length === 0 ? <div className="category-budget-empty"><b>本月尚未設定分類預算</b><small>選擇支出分類並輸入金額，即可開始追蹤使用狀況。</small></div> : <div className="category-budget-list">{categoryBudgetSummaries.map((budget) => {
+        {categoryBudgetSummaries.length === 0 ? <div className="category-budget-empty"><b>本月尚未設定分類預算</b><small>選擇支出分類並輸入金額，即可開始追蹤使用狀況。</small></div> : <div className="category-budget-list">{monthlyCategoryBudgets.map((budget) => {
           const category = data.categories.find((item) => item.id === budget.categoryId);
           return category ? <CategoryBudgetRow key={`${budget.month}-${budget.categoryId}-${budget.amount}`} category={category} budget={budget} busy={busy} onSave={(amount) => saveCategoryBudget(category.id, amount)} onDelete={() => removeCategoryBudget(category.id)} /> : null;
         })}</div>}
