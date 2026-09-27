@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import type { Budget, Category, CategoryBudget, CreatedLedgerInvitation, Ledger, LedgerInvitation, LedgerMember, MemberRole, PaymentMethod, Transaction, TransactionType } from './types';
+import { assertSupabaseUrlAllowed } from './supabase-url-policy';
 
 export interface Identity { id: string; email: string; displayName: string }
 export interface LedgerData { ledger: Ledger; categories: Category[]; methods: PaymentMethod[]; transactions: Transaction[]; budget: Budget | null; categoryBudgets: CategoryBudget[] }
@@ -202,13 +203,11 @@ const tailnetTestMode = import.meta.env.DEV && import.meta.env.VITE_TAILNET_TEST
 const useSupabase = import.meta.env.VITE_DEMO_MODE === 'false' && Boolean(configuredUrl && configuredKey);
 let store: Store;
 if (useSupabase) {
-  const parsed = new URL(configuredUrl!);
-  const isLoopback = ['127.0.0.1', 'localhost'].includes(parsed.hostname);
-  const isTailnetProxy = tailnetTestMode && Boolean(tailnetHost)
-    && parsed.hostname === tailnetHost
-    && parsed.port === '5173'
-    && parsed.pathname === '/supabase/';
-  if (!isLoopback && !isTailnetProxy) throw new Error('安全限制：開發版僅允許連線至本機 Supabase；Tailnet 測試須明確啟用本機代理。');
+  assertSupabaseUrlAllowed(configuredUrl!, {
+    isDevelopment: import.meta.env.DEV,
+    tailnetHost,
+    tailnetTestMode,
+  });
   store = new SupabaseStore(createClient(configuredUrl!, configuredKey!));
 } else store = new DemoStore();
 export const dataStore = store;

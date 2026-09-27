@@ -26,3 +26,4 @@ supabase/.env.*
 .vite/
 *.log
 .DS_Store
+.vercel
