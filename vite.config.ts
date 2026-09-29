@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: 'app',
+    envDir: '..',
     plugins: [react()],
     server: {
       host: tailnetTestMode && tailnetHost ? tailnetHost : '127.0.0.1',
