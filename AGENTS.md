@@ -32,3 +32,10 @@ Build a multi-user budgeting and bookkeeping app that retains future Public Beta
 ## Production boundary
 - Prepare production deployment only after Local Supabase passes.
 - Production migrations and destructive operations require JJ's explicit approval.
+
+## Verified GitHub sync
+- This rule applies only to Monthly Budget Book V2. After a feature task is accepted and its necessary tests and actual Local behavior validation pass, automatically sync the verified task changes to `origin/v2/core-mvp` without a separate sync request. Do not push for read-only, discussion-only, failed, waiting, or in-flight tasks.
+- Use an isolated worktree based on the latest fetched remote branch. Stage only files verified for the current task; preserve the active Local runtime and all unrelated uncommitted changes. Review the staged diff and exclude secrets, credentials, `.env*`, real financial data, generated artifacts, and unrelated files.
+- Use normal commits and fast-forward pushes only; never force-push or rewrite history. Fetch and read back the remote commit and changed content after pushing.
+- Before each push, confirm no active Cloud/Production deployment path can be triggered. If a deployment link or Production impact is present or uncertain, stop and ask JJ. Never reconnect Vercel, deploy Cloud, or modify Production. Update `README.md` only for material feature or project-status changes.
+- Do not modify Hermes global settings or weaken/bypass existing security rules or protected-file approval requirements.
