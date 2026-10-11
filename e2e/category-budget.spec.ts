@@ -49,8 +49,14 @@ const email = `category-budget-${id}@example.test`;
   await expect(unusedBudget.locator('.budget-usage')).toHaveAttribute('data-state', 'normal');
   await expect(unusedBudget.locator('.budget-usage')).toContainText('0%');
   await expect(unusedBudget.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+  await expect(unusedBudget.getByRole('button', { name: '刪除此分類預算' })).toHaveCount(0);
+  await unusedBudget.locator('summary').click();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await unusedBudget.getByRole('button', { name: '刪除此分類預算' }).click();
+  await expect(unusedBudget).toBeVisible();
+  await unusedBudget.locator('summary').click();
   page.once('dialog', (dialog) => dialog.accept());
-  await unusedBudget.getByRole('button', { name: '刪除' }).click();
+  await unusedBudget.getByRole('button', { name: '刪除此分類預算' }).click();
   await expect(unusedBudget).toHaveCount(0);
 
   await page.getByRole('button', { name: '總覽' }).first().click();
@@ -75,8 +81,9 @@ const email = `category-budget-${id}@example.test`;
   await expect(persistedFoodBudget).toContainText('350');
   await expect(persistedFoodBudget).toContainText('50%');
 
+  await persistedFoodBudget.locator('summary').click();
   page.once('dialog', (dialog) => dialog.accept());
-  await persistedFoodBudget.getByRole('button', { name: '刪除' }).click();
+  await persistedFoodBudget.getByRole('button', { name: '刪除此分類預算' }).click();
   await expect(page.getByText('本月尚未設定分類預算')).toBeVisible();
 });
 

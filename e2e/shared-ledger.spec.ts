@@ -136,6 +136,27 @@ test('two synthetic users share transactions, categories, and budgets with role-
   await memberPage.getByRole('button', { name: '帳本設定' }).first().click();
   await expect(memberPage.locator('.ledger-info .role-pill')).toHaveText('檢視者');
   await expect(memberPage.getByRole('button', { name: /建立邀請/ })).toHaveCount(0);
+  await expect(memberPage.getByRole('button', { name: '新增帳本' })).toHaveCount(0);
+  await expect(memberPage.getByText(sharedCategory, { exact: true })).toBeVisible();
+  await expect(memberPage.getByLabel(`編輯名稱 ${sharedCategory}`)).toHaveCount(0);
+  await expect(memberPage.getByLabel(`刪除 ${sharedCategory}`)).toHaveCount(0);
+  await expect(memberPage.getByLabel('新增收支分類')).toHaveCount(0);
+
+  await memberPage.getByRole('button', { name: '收支明細' }).first().click();
+  await expect(memberPage.locator('.transaction-row').filter({ hasText: sharedTransaction })).toBeVisible();
+  await expect(memberPage.getByRole('button', { name: '新增明細' })).toHaveCount(0);
+  await expect(memberPage.getByRole('button', { name: `編輯 ${sharedTransaction}` })).toHaveCount(0);
+  await expect(memberPage.getByRole('button', { name: `刪除 ${sharedTransaction}` })).toHaveCount(0);
+
+  await memberPage.getByRole('button', { name: '月預算' }).first().click();
+  await expect(memberPage.locator('.budget-editor')).toContainText('$5,000');
+  await expect(memberPage.getByLabel('本月預算金額')).toHaveCount(0);
+  await expect(memberPage.getByRole('button', { name: '新增分類預算' })).toHaveCount(0);
+  await expect(memberPage.getByLabel(`分類預算金額 ${sharedCategory}`)).toHaveCount(0);
+  await expect(memberPage.locator('.category-budget-item').filter({ hasText: sharedCategory })).toContainText('700');
+
+  await memberPage.getByRole('button', { name: '消費分析' }).first().click();
+  await expect(memberPage.getByRole('heading', { name: '消費分析' })).toBeVisible();
 
   owner.page.once('dialog', (dialog) => dialog.accept());
   await owner.page.getByRole('button', { name: `移除成員 ${memberEmail}` }).click();

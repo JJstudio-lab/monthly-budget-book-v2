@@ -105,6 +105,14 @@ test('Local synthetic household data works across finance flows and responsive l
   await addCategoryBudget(page, '交通', 1500);
   await addCategoryBudget(page, '生活', 20000);
 
+  const extraCategory = `測試分類-${id}`;
+  await page.getByRole('button', { name: '帳本設定' }).first().click();
+  await page.getByLabel('新增收支分類').fill(extraCategory);
+  await page.locator('.config-panel').first().getByRole('button', { name: '新增' }).click();
+  await expect(page.getByLabel(`編輯名稱 ${extraCategory}`)).toHaveValue(extraCategory);
+  await page.getByRole('button', { name: '月預算' }).first().click();
+  await addCategoryBudget(page, extraCategory, 2500);
+
   await page.getByRole('button', { name: '總覽' }).first().click();
   await expect(page.locator('.summary-card.income')).toContainText('$60,000');
   await expect(page.locator('.summary-card.expense')).toContainText('$21,800');
@@ -115,6 +123,11 @@ test('Local synthetic household data works across finance flows and responsive l
   await expect(homeBudget).toContainText('$8,200');
   await expect(homeBudget).toContainText('73%');
   await expect(homeBudget.locator('.budget-usage.compact')).toHaveCount(3);
+  await expect(homeBudget.getByRole('button', { name: `查看全部 4 個分類` })).toBeVisible();
+  await homeBudget.getByRole('button', { name: `查看全部 4 個分類` }).click();
+  await expect(homeBudget.locator('.budget-usage.compact')).toHaveCount(4);
+  await expect(homeBudget.locator('.budget-usage.compact').filter({ hasText: extraCategory })).toContainText('$2,500');
+  await expect(homeBudget.getByRole('button', { name: '收合分類' })).toBeVisible();
   const homeCategories = homeBudget.locator('.budget-usage.compact');
   await expect(homeCategories.nth(0)).toContainText('交通');
   await expect(homeCategories.nth(0)).toHaveAttribute('data-state', 'over');
@@ -168,7 +181,29 @@ test('Local synthetic household data works across finance flows and responsive l
   }
   for (const pageKey of ['overview', 'records', 'budget', 'settings']) {
     await verifyViewport(page, pageKey, 390, 844, testInfo.outputPath(`local-acceptance-390-${pageKey}.png`));
+    if (pageKey === 'overview') {
+      await expect(page.locator('.budget-panel .budget-usage.compact')).toHaveCount(4);
+      await expect(page.locator('.budget-panel .budget-usage.compact').filter({ hasText: extraCategory })).toContainText('$2,500');
+    }
   }
+
+  await page.getByRole('button', { name: '月預算' }).first().click();
+  const extraBudgetRow = page.locator('[data-testid^="category-budget-"]').filter({ hasText: extraCategory });
+  await expect(extraBudgetRow.locator('summary')).toHaveText('⋯ 更多操作');
+  await expect(extraBudgetRow.getByRole('button', { name: '刪除此分類預算' })).toHaveCount(0);
+  const menuSummary = extraBudgetRow.locator('summary');
+  const menuBounds = await menuSummary.boundingBox();
+  expect(menuBounds?.width).toBeGreaterThanOrEqual(32);
+  expect(menuBounds?.height).toBeGreaterThanOrEqual(32);
+  await menuSummary.click();
+  await expect(extraBudgetRow.getByRole('button', { name: '刪除此分類預算' })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await extraBudgetRow.getByRole('button', { name: '刪除此分類預算' }).click();
+  await expect(extraBudgetRow).toBeVisible();
+  await menuSummary.click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await extraBudgetRow.getByRole('button', { name: '刪除此分類預算' }).click();
+  await expect(extraBudgetRow).toHaveCount(0);
 });
 
 test('consumption analysis compares expense-only monthly totals and category shares responsively', async ({ page }, testInfo) => {

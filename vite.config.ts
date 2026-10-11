@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: tailnetTestMode && tailnetHost ? tailnetHost : '127.0.0.1',
       ...(tailnetTestMode ? {
+        ...(tailnetHost ? { allowedHosts: [tailnetHost] } : {}),
         proxy: {
           '/supabase': {
             target: 'http://127.0.0.1:54321',
