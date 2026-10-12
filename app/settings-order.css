@@ -1,0 +1,2 @@
+.config-reorder-actions{display:flex;flex:0 0 auto;gap:3px;margin-left:auto}.config-reorder-actions button{display:grid;width:42px;height:42px;place-items:center;padding:0;border:1px solid #ececf2;border-radius:9px;background:#fff;color:var(--purple);touch-action:manipulation}.config-reorder-actions button:hover:not(:disabled){background:var(--purple-light);border-color:#d9d6ff}.config-reorder-actions button:disabled{opacity:.38;cursor:not-allowed}
+@media(max-width:640px){.config-reorder-actions{gap:2px}.config-reorder-actions button{width:42px;height:42px}}

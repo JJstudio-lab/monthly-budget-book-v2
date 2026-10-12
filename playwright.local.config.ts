@@ -14,7 +14,7 @@ if (!apiUrl || !anonKey || !['127.0.0.1', 'localhost'].includes(new URL(apiUrl).
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['shared-ledger.spec.ts', 'category-budget.spec.ts', 'local-acceptance.spec.ts', 'transaction-ux.spec.ts', 'transaction-list-ux.spec.ts'],
+  testMatch: ['shared-ledger.spec.ts', 'category-budget.spec.ts', 'local-acceptance.spec.ts', 'transaction-ux.spec.ts', 'transaction-list-ux.spec.ts', 'settings-order.spec.ts'],
   fullyParallel: false,
   reporter: 'list',
   use: { baseURL: 'http://127.0.0.1:5174', trace: 'retain-on-failure', ...devices['Desktop Chrome'] },
